@@ -229,8 +229,8 @@ class ProxyScraperChecker:
         """
         try:
             async with session.get(source) as response:
-                status = response.status
-                text = await response.text()
+                await response.read()
+            text = await response.text()
         except asyncio.TimeoutError:
             logger.warning("%s | Timed out", source)
         except Exception as e:
@@ -253,18 +253,23 @@ class ProxyScraperChecker:
             )
             logger.error(*args)
         else:
-            proxies = tuple(self.regex.finditer(text))
-            if proxies:
-                for proxy in proxies:
-                    proxy_obj = Proxy(host=proxy.group(1), port=int(proxy.group(2)))
-                    self.proxies[proto].add(proxy_obj)
-            else:
+            proxies = self.regex.finditer(text)
+            try:
+                proxy = next(proxies)
+            except StopIteration:
                 args = (
                     ("%s | No proxies found", source)
-                    if status == 200  # noqa: PLR2004
-                    else ("%s | HTTP status code %d", source, status)
+                    if response.status == 200  # noqa: PLR2004
+                    else ("%s | HTTP status code %d", source, response.status)
                 )
                 logger.warning(*args)
+            else:
+                proxies_set = self.proxies[proto]
+                proxies_set.add(Proxy(host=proxy.group(1), port=int(proxy.group(2))))
+                for proxy in proxies:
+                    proxies_set.add(
+                        Proxy(host=proxy.group(1), port=int(proxy.group(2)))
+                    )
         progress.update(task, advance=1)
 
     async def check_proxy(
@@ -353,6 +358,9 @@ class ProxyScraperChecker:
                 )
                 file = folder.path / f"{proto.name.lower()}.txt"
                 file.write_text(text, encoding="utf-8")
+        logger.info(
+            "Proxy folders have been created in the %s folder.", self.path.resolve()
+        )
 
     async def run(self) -> None:
         with self._get_progress_bar() as progress:
@@ -363,12 +371,9 @@ class ProxyScraperChecker:
         self.console.print(table)
 
         self.save_proxies()
+
         logger.info(
-            (
-                "Proxy folders have been created in the %s folder."
-                "\nThank you for using proxy-scraper-checker :)"
-            ),
-            self.path.resolve(),
+            "Thank you for using https://github.com/monosans/proxy-scraper-checker :)"
         )
 
     def get_sorted_proxies(self) -> Dict[ProxyType, List[Proxy]]:

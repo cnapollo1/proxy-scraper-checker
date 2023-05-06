@@ -36,7 +36,8 @@ class Proxy:
             website = DEFAULT_CHECK_WEBSITE
         async with sem:
             start = perf_counter()
-            async with self.get_connector(proto) as connector, ClientSession(
+            connector = ProxyConnector(proxy_type=proto, host=self.host, port=self.port)
+            async with ClientSession(
                 connector=connector,
                 cookie_jar=cookie_jar,
                 timeout=timeout,
@@ -46,14 +47,11 @@ class Proxy:
                     await response.read()
         self.timeout = perf_counter() - start
         if website == DEFAULT_CHECK_WEBSITE:
-            data = await response.json()
+            data = await response.json(content_type=None)
             self.is_anonymous = self.host != data["query"]
             self.geolocation = "|{}|{}|{}".format(
                 data["country"], data["regionName"], data["city"]
             )
-
-    def get_connector(self, proto: ProxyType) -> ProxyConnector:
-        return ProxyConnector(proxy_type=proto, host=self.host, port=self.port)
 
     def as_str(self, *, include_geolocation: bool) -> str:
         if include_geolocation:
