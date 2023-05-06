@@ -1,0 +1,37 @@
+import asyncio
+from configparser import ConfigParser
+from tkinter.ttk import Progressbar
+
+from aiohttp import ClientSession, ClientTimeout
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; rv:109.0) Gecko/20100101 Firefox/109.0"
+
+
+class ProxyChecker:
+    '''检测代理'''    
+    def __init__(self) -> None:
+        pass
+    @classmethod
+    def Read(self, fileName: str) -> ConfigParser:
+        cfg = ConfigParser(interpolation=None)
+        cfg.read(fileName, "UTF-8")
+        return cfg
+    async def FetchAllSources(self,progress:Progressbar):
+        '''检测所有源'''
+        tasks={}
+        async with ClientSession(
+            headers={"User-Agent": USER_AGENT},
+            cookie_jar=self.cookie_jar,
+            timeout=ClientTimeout(total=self.source_timeout),
+        ) as session:
+            coroutines = (
+                self.fetch_source(
+                    session=session,
+                    source=source,
+                    proto=proto,
+                    progress=progress,
+                    task=tasks[proto],
+                )
+                for proto, sources in self.sources.items()
+                for source in sources
+            )
+            await asyncio.gather(*coroutines)   
